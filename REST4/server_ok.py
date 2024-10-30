@@ -11,6 +11,7 @@ if cur is None:
 	print("Errore connessione al DB")
 	sys.exit()
 
+
 file_path = "anagrafe.json"
 cittadini = JsonDeserialize(file_path)
 
@@ -34,11 +35,18 @@ def GestisciLogin():
         jsonReq = request.json
         sUsernameInseritoDalClient = jsonReq["username"]
         sPasswordInseritaDalClient = jsonReq["password"]
-        sQuery = "select mail,privilegi from utenti where mail='" + sUsernameInseritoDalClient + "' and password='" + sPasswordInseritaDalClient + "';"  
+        sQuery = "select privilegi from utenti where mail='" + sUsernameInseritoDalClient + "' and password='" + sPasswordInseritaDalClient + "';"  
         print(sQuery)
         iNumRows = db.read_in_db(cur,sQuery)
         if iNumRows == 1:
-            #[0,['w']]
+            #[0,['w']] questo è lRow
+            # 0 è lRow[0] 
+            #['w'] questo è lRow[1]
+            #'w' è lRow[1][0]
+
+            #Se la query fosse stata      select mail,privilegi
+            #[0,['mariorossi@gmail.com','w']]
+
             lRow = db.read_next_row(cur)
             sPriv = lRow[1][0]
             print("privilegio: " + sPriv)
@@ -67,9 +75,15 @@ def GestisciAddCittadino():
         nome = jsonReq.get('nome')
         cognome = jsonReq.get('cognome')
         dataNascita = jsonReq.get('dataNascita')
+        
         sQuery = "insert into anagrafe(codice_fiscale,nome,cognome,data_nascita) values ("
         sQuery += "'" + codice_fiscale + "','" + nome + "','" + cognome + "','" + dataNascita + "');"
+        
+        
         print(sQuery)
+        
+        
+        
         iRet = db.write_in_db(cur,sQuery)
         if iRet == -2:
             return jsonify({"Esito": "001", "Msg": "Cittadino già esistente"}), 200
@@ -95,10 +109,6 @@ def read_cittadino(codice_fiscale,username,password):
     #mentre il privilegio lo vado a leggere nel mio file  (utenti.json)
     sQuery = "select * from cittadini where codice_fiscale='" + codice_fiscale + "';"
     
-
-
-
-
     cittadino = cittadini.get(codice_fiscale)
     if cittadino:
         return jsonify({"Esito": "000", "Msg": "Cittadino trovato", "Dati": cittadino}), 200
