@@ -35,64 +35,49 @@ def GestisciLogin():
         jsonReq = request.json
         sUsernameInseritoDalClient = jsonReq["username"]
         sPasswordInseritaDalClient = jsonReq["password"]
-        sQuery = "select privilegi from utenti where mail='" + sUsernameInseritoDalClient + "' and password='" + sPasswordInseritaDalClient + "';"  
-        print(sQuery)
-        iNumRows = db.read_in_db(cur,sQuery)
-        if iNumRows == 1:
-            #[0,['w']] questo è lRow
-            # 0 è lRow[0] 
-            #['w'] questo è lRow[1]
-            #'w' è lRow[1][0]
+        
+        # Query per verificare username e password
+        sQuery = "SELECT privilegi FROM utenti WHERE email = %s AND password = %s;"
+        cur.execute(sQuery, (sUsernameInseritoDalClient, sPasswordInseritaDalClient))
+        result = cur.fetchone()
 
-            #Se la query fosse stata      select mail,privilegi
-            #[0,['mariorossi@gmail.com','w']]
-
-            lRow = db.read_next_row(cur)
-            sPriv = lRow[1][0]
-            print("privilegio: " + sPriv)
-            return jsonify({"Esito": "000", "Msg": "Utente registrato", "Privilegio":sPriv}), 200
+        if result:
+            sPriv = result[0]  # Recupera il privilegio
+            return jsonify({"Esito": "000", "Msg": "Utente registrato", "Privilegio": sPriv}), 200
         else:
             return jsonify({"Esito": "001", "Msg": "Credenziali errate"})
     else:
-        return jsonify({"Esito": "002", "Msg": "Formato richiesta errato"}) 
+        return jsonify({"Esito": "002", "Msg": "Formato richiesta errato"})
+ 
 
 
 
 
 
-@api.route('/add_cittadino', methods=['POST', 'GET'])
+@api.route('/add_cittadino', methods=['POST'])
 def GestisciAddCittadino():
     global cur
     content_type = request.headers.get('Content-Type')
     if content_type == 'application/json':
         jsonReq = request.json
-        
-        #prima di tutto verifico utente, password e privilegio 
-        #dove utente e password me l'ha inviato il client
-        #mentre il privilegio lo vado a leggere nel mio file  (utenti.json)
 
-        codice_fiscale = jsonReq.get('codFiscale')
-        nome = jsonReq.get('nome')
-        cognome = jsonReq.get('cognome')
-        dataNascita = jsonReq.get('dataNascita')
+        codice_fiscale = jsonReq.get('datiCittadino').get('codFiscale')
+        nome = jsonReq.get('datiCittadino').get('nome')
+        cognome = jsonReq.get('datiCittadino').get('cognome')
+        data_nascita = jsonReq.get('datiCittadino').get('dataNascita')
         
-        sQuery = "insert into anagrafe(codice_fiscale,nome,cognome,data_nascita) values ("
-        sQuery += "'" + codice_fiscale + "','" + nome + "','" + cognome + "','" + dataNascita + "');"
-        
-        
-        print(sQuery)
-        
-        
-        
-        iRet = db.write_in_db(cur,sQuery)
-        if iRet == -2:
-            return jsonify({"Esito": "001", "Msg": "Cittadino già esistente"}), 200
-        elif iRet == -1:
-            return jsonify({"Esito": "002", "Msg": "Formato richiesta non valido"}), 200
-        else:
+        sQuery = "INSERT INTO cittadini (codice_fiscale, nome, cognome, data_nascita) VALUES (%s, %s, %s, %s);"
+        try:
+            db.write_in_db(cur, sQuery, (codice_fiscale, nome, cognome, data_nascita))
             return jsonify({"Esito": "000", "Msg": "Cittadino aggiunto con successo"}), 200
+        except Exception as e:
+            if 'duplicate key' in str(e):
+                return jsonify({"Esito": "001", "Msg": "Cittadino già esistente"}), 200
+            else:
+                return jsonify({"Esito": "002", "Msg": "Errore nel salvataggio"}), 200
     else:
-        return jsonify({"Esito": "002", "Msg": "Formato richiesta non valido"}), 200
+        return jsonify({"Esito": "002", "Msg": "Formato richiesta non valido"})
+
 
 
 
@@ -102,16 +87,19 @@ e verifica se il codice e d i dati associati stanno in anagrafe.json
 """
 
 @api.route('/read_cittadino/<codice_fiscale>/<username>/<password>', methods=['GET'])
-def read_cittadino(codice_fiscale,username,password):
-
-    #prima di tutto verifico utente, password e privilegio 
-    #dove utente e password me l'ha inviato il client
-    #mentre il privilegio lo vado a leggere nel mio file  (utenti.json)
-    sQuery = "select * from cittadini where codice_fiscale='" + codice_fiscale + "';"
+def read_cittadino(codice_fiscale, username, password):
+    sQuery = "SELECT * FROM cittadini WHERE codice_fiscale = %s;"
+    cur.execute(sQuery, (codice_fiscale,))
+    cittadino = cur.fetchone()
     
-    cittadino = cittadini.get(codice_fiscale)
     if cittadino:
-        return jsonify({"Esito": "000", "Msg": "Cittadino trovato", "Dati": cittadino}), 200
+        dati = {
+            "codFiscale": cittadino[0],
+            "nome": cittadino[1],
+            "cognome": cittadino[2],
+            "dataNascita": cittadino[3].strftime("%d/%m/%Y")
+        }
+        return jsonify({"Esito": "000", "Msg": "Cittadino trovato", "Dati": dati}), 200
     else:
         return jsonify({"Esito": "001", "Msg": "Cittadino non trovato"}), 200
 
@@ -120,45 +108,27 @@ def read_cittadino(codice_fiscale,username,password):
 
 
 
+
 @api.route('/update_cittadino', methods=['PUT'])
 def update_cittadino():
-
-    #prima di tutto verifico utente, password e privilegio 
-    #dove utente e password me l'ha inviato il client
-    #mentre il privilegio lo vado a leggere nel mio file  (utenti.json)
-
     content_type = request.headers.get('Content-Type')
     if content_type == 'application/json':
         jsonReq = request.json
         codice_fiscale = jsonReq.get('codFiscale')
-        if codice_fiscale in cittadini:
-            cittadini[codice_fiscale] = jsonReq
-            JsonSerialize(cittadini, file_path)  
+        nome = jsonReq.get('nome')
+        cognome = jsonReq.get('cognome')
+        data_nascita = jsonReq.get('dataNascita')
+        
+        sQuery = "UPDATE cittadini SET nome = %s, cognome = %s, data_nascita = %s WHERE codice_fiscale = %s;"
+        iRet = db.write_in_db(cur, sQuery, (nome, cognome, data_nascita, codice_fiscale))
+
+        if iRet == 0:
             return jsonify({"Esito": "000", "Msg": "Cittadino aggiornato con successo"}), 200
         else:
             return jsonify({"Esito": "001", "Msg": "Cittadino non trovato"}), 200
     else:
         return jsonify({"Esito": "002", "Msg": "Formato richiesta non valido"}), 200
 
-
-@api.route('/elimina_cittadino', methods=['DELETE'])
-def elimina_cittadino():
-
-    #prima di tutto verifico utente, password e privilegio 
-    #dove utente e password me l'ha inviato il client
-    #mentre il privilegio lo vado a leggere nel mio file  (utenti.json)
-    
-    content_type = request.headers.get('Content-Type')
-    if content_type == 'application/json':
-        cod = request.json.get('codFiscale')
-        if cod in cittadini:
-            del cittadini[cod]
-            JsonSerialize(cittadini, file_path)  
-            return jsonify({"Esito": "000", "Msg": "Cittadino rimosso con successo"}), 200
-        else:
-            return jsonify({"Esito": "001", "Msg": "Cittadino non trovato"}), 200
-    else:
-        return jsonify({"Esito": "002", "Msg": "Formato richiesta non valido"}), 200
 
 
 api.run(host="0.0.0.0", port=8080, ssl_context="adhoc")
