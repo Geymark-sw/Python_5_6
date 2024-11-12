@@ -44,16 +44,6 @@ def regKo():
 
 @api.route('/registrati', methods=['GET'])
 def registra():
-    if request.method == 'POST':
-        nome = request.form['nome'] + "DA POST"
-    else:
-        nome = request.args.get("nome") + "DA GET"
-
-    sResponsePage = "<html><body><h1>Buogiorno " + nome + " a tutti, il 17 settembre 2024</h1></body></html>"
-    return sResponsePage    
-
-@api.route('/registrati1', methods=['GET'])
-def registra():
     #prendi i dati che ti ha inviato il server
 
     #verifica la correttezza 
